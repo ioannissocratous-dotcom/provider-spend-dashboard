@@ -1,2 +1,3 @@
 databricks-sql-connector
 pandas
+cryptography

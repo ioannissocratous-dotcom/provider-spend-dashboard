@@ -26,6 +26,7 @@ jobs:
       - name: Generate dashboard
         env:
           DATABRICKS_TOKEN_INCENTIVES: ${{ secrets.DATABRICKS_TOKEN_INCENTIVES }}
+          DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
         run: python generate_dashboard.py
 
       - name: Deploy to GitHub Pages

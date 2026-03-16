@@ -8,6 +8,8 @@ Generates docs/index.html for GitHub Pages.
 import json
 import os
 import sys
+import hashlib
+import base64
 from datetime import date, timedelta, datetime
 from pathlib import Path
 from calendar import monthrange
@@ -641,10 +643,90 @@ def main():
         df_to_records(df_overview), df_to_records(df_brands),
         df_to_records(df_city_gmv), cfg, periods,
     )
+
+    password = os.environ.get("DASHBOARD_PASSWORD") or cfg.get("password", "")
+    if password:
+        print("Encrypting dashboard with password protection...")
+        html = wrap_with_password(html, password)
+
     with open(OUTPUT_PATH, "w") as f:
         f.write(html)
 
     print(f"Dashboard saved to: {OUTPUT_PATH}")
+
+
+def wrap_with_password(inner_html, password):
+    """Encrypt dashboard HTML with AES-GCM, wrap in a password-prompt page."""
+    salt = os.urandom(16)
+    iv = os.urandom(12)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000, dklen=32)
+
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    aesgcm = AESGCM(key)
+    plaintext = inner_html.encode("utf-8")
+    ciphertext = aesgcm.encrypt(iv, plaintext, None)
+
+    payload = {
+        "salt": base64.b64encode(salt).decode(),
+        "iv": base64.b64encode(iv).decode(),
+        "ct": base64.b64encode(ciphertext).decode(),
+    }
+
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Provider Spend Dashboard — Login</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+       background: #f5f6fa; display:flex; justify-content:center; align-items:center; min-height:100vh; }
+.login { background:#fff; border:1px solid #e2e4ec; border-radius:12px; padding:40px; width:360px; text-align:center; }
+.login h1 { font-size:18px; font-weight:700; margin-bottom:8px; color:#1a1d2e; }
+.login p { font-size:13px; color:#6b7085; margin-bottom:24px; }
+.login input { width:100%; padding:10px 14px; border:1px solid #e2e4ec; border-radius:8px;
+               font-size:14px; margin-bottom:12px; }
+.login input:focus { outline:none; border-color:#3D7ABF; }
+.login button { width:100%; padding:10px; background:#3D7ABF; color:#fff; border:none;
+                border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+.login button:hover { background:#2d6aa3; }
+.error { color:#D64545; font-size:12px; margin-top:8px; display:none; }
+</style>
+</head>
+<body>
+<div class="login" id="loginBox">
+  <h1>Provider Spend Dashboard</h1>
+  <p>Enter the password to view the dashboard.</p>
+  <input type="password" id="pwd" placeholder="Password" autofocus>
+  <button onclick="unlock()">Unlock</button>
+  <div class="error" id="err">Incorrect password. Try again.</div>
+</div>
+<script>
+const E=""" + json.dumps(payload) + """;
+document.getElementById('pwd').addEventListener('keydown', e => { if(e.key==='Enter') unlock(); });
+async function unlock() {
+  const pwd = document.getElementById('pwd').value;
+  try {
+    const salt = Uint8Array.from(atob(E.salt), c => c.charCodeAt(0));
+    const iv = Uint8Array.from(atob(E.iv), c => c.charCodeAt(0));
+    const ct = Uint8Array.from(atob(E.ct), c => c.charCodeAt(0));
+    const enc = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(pwd), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey(
+      { name:'PBKDF2', salt, iterations:100000, hash:'SHA-256' },
+      keyMaterial, { name:'AES-GCM', length:256 }, false, ['decrypt']
+    );
+    const decrypted = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
+    const html = new TextDecoder().decode(decrypted);
+    document.open(); document.write(html); document.close();
+  } catch(e) {
+    document.getElementById('err').style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>"""
 
 
 if __name__ == "__main__":
