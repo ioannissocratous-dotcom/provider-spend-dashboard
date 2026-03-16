@@ -1,0 +1,20 @@
+{
+  "country": "cy",
+  "monthly_budget_pct_gmv": 1.50,
+  "objectives": [
+    "provider_campaign_marketing",
+    "provider_campaign_manual_churn_prevention",
+    "provider_campaign_locations",
+    "provider_campaign_obligations_commitments",
+    "provider_campaign_retail_growth",
+    "provider_campaign_commission_increase"
+  ],
+  "objective_labels": {
+    "provider_campaign_marketing": "Marketing",
+    "provider_campaign_manual_churn_prevention": "Manual Churn Prevention",
+    "provider_campaign_locations": "Locations",
+    "provider_campaign_obligations_commitments": "Obligations Commitments",
+    "provider_campaign_retail_growth": "Retail Growth",
+    "provider_campaign_commission_increase": "Commission Increase"
+  }
+}
